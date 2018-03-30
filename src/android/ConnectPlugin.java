@@ -73,8 +73,6 @@ public class ConnectPlugin extends CordovaPlugin {
     private AppEventsLogger logger;
     private CallbackContext loginContext = null;
     private CallbackContext showDialogContext = null;
-    private CallbackContext lastGraphContext = null;
-    private String graphPath;
     private ShareDialog shareDialog;
     private GameRequestDialog gameRequestDialog;
     private AppInviteDialog appInviteDialog;
@@ -100,18 +98,9 @@ public class ConnectPlugin extends CordovaPlugin {
                     @Override
                     public void onCompleted(JSONObject jsonObject, GraphResponse response) {
                         if (response.getError() != null) {
-                            if (lastGraphContext != null) {
-                                lastGraphContext.error(getFacebookRequestErrorResponse(response.getError()));
-                            } else if (loginContext != null) {
+                            if (loginContext != null) {
                                 loginContext.error(getFacebookRequestErrorResponse(response.getError()));
                             }
-                            return;
-                        }
-
-                        // If this login comes after doing a new permission request
-                        // make the outstanding graph call
-                        if (lastGraphContext != null) {
-                            makeGraphCall(lastGraphContext);
                             return;
                         }
 
@@ -604,76 +593,14 @@ public class ConnectPlugin extends CordovaPlugin {
     }
 
     private void executeGraph(JSONArray args, CallbackContext callbackContext) throws JSONException {
-        lastGraphContext = callbackContext;
         CallbackContext graphContext  = callbackContext;
         PluginResult pr = new PluginResult(PluginResult.Status.NO_RESULT);
         pr.setKeepCallback(true);
         graphContext.sendPluginResult(pr);
 
-        graphPath = args.getString(0);
-        JSONArray arr = args.getJSONArray(1);
+        String graphPath = args.getString(0);
 
-        final Set<String> permissions = new HashSet<String>(arr.length());
-        for (int i = 0; i < arr.length(); i++) {
-            permissions.add(arr.getString(i));
-        }
-
-        if (permissions.size() == 0) {
-            makeGraphCall(graphContext);
-            return;
-        }
-
-        boolean publishPermissions = false;
-        boolean readPermissions = false;
-        String declinedPermission = null;
-
-        AccessToken accessToken = AccessToken.getCurrentAccessToken();
-        if (accessToken.getPermissions().containsAll(permissions)) {
-            makeGraphCall(graphContext);
-            return;
-        }
-
-        Set<String> declined = accessToken.getDeclinedPermissions();
-
-        // Figure out if we have all permissions
-        for (String permission : permissions) {
-            if (declined.contains(permission)) {
-                declinedPermission = permission;
-                break;
-            }
-
-            if (isPublishPermission(permission)) {
-                publishPermissions = true;
-            } else {
-                readPermissions = true;
-            }
-
-            // Break if we have a mixed bag, as this is an error
-            if (publishPermissions && readPermissions) {
-                break;
-            }
-        }
-
-        if (declinedPermission != null) {
-            graphContext.error("This request needs declined permission: " + declinedPermission);
-			return;
-        }
-
-        if (publishPermissions && readPermissions) {
-            graphContext.error("Cannot ask for both read and publish permissions.");
-            return;
-        }
-
-        cordova.setActivityResultCallback(this);
-        LoginManager loginManager = LoginManager.getInstance();
-        // Check for write permissions, the default is read (empty)
-        if (publishPermissions) {
-            // Request new publish permissions
-            loginManager.logInWithPublishPermissions(cordova.getActivity(), permissions);
-        } else {
-            // Request new read permissions
-            loginManager.logInWithReadPermissions(cordova.getActivity(), permissions);
-        }
+        makeGraphCall(graphContext, graphPath);
     }
 
     private void executeLogEvent(JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -839,7 +766,7 @@ public class ConnectPlugin extends CordovaPlugin {
         }
     }
 
-    private void makeGraphCall(final CallbackContext graphContext ) {
+    private void makeGraphCall(final CallbackContext graphContext, String graphPath) {
         //If you're using the paging URLs they will be URLEncoded, let's decode them.
         try {
             graphPath = URLDecoder.decode(graphPath, "UTF-8");
@@ -858,7 +785,6 @@ public class ConnectPlugin extends CordovaPlugin {
                     } else {
                         graphContext.success(response.getJSONObject());
                     }
-                    graphPath = null;
                 }
             }
         });
