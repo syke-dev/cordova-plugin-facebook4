@@ -400,22 +400,7 @@
     }
 
     NSString *graphPath = [command argumentAtIndex:0];
-    NSArray *permissionsNeeded = [command argumentAtIndex:1];
-    NSSet *currentPermissions = [FBSDKAccessToken currentAccessToken].permissions;
-
-    // We will store here the missing permissions that we will have to request
-    NSMutableArray *requestPermissions = [[NSMutableArray alloc] initWithArray:@[]];
-    NSArray *permissions;
-
-    // Check if all the permissions we need are present in the user's current permissions
-    // If they are not present add them to the permissions to be requested
-    for (NSString *permission in permissionsNeeded){
-        if (![currentPermissions containsObject:permission]) {
-            [requestPermissions addObject:permission];
-        }
-    }
-    permissions = [requestPermissions copy];
-
+    
     // Defines block that handles the Graph API response
     FBSDKGraphRequestHandler graphHandler = ^(FBSDKGraphRequestConnection *connection, id result, NSError *error) {
         CDVPluginResult* pluginResult;
@@ -435,45 +420,7 @@
     NSLog(@"Graph Path = %@", graphPath);
     FBSDKGraphRequest *request = [[FBSDKGraphRequest alloc] initWithGraphPath:graphPath parameters:nil];
 
-    // If we have permissions to request
-    if ([permissions count] == 0){
-        [request startWithCompletionHandler:graphHandler];
-        return;
-    }
-
-    [self loginWithPermissions:requestPermissions withHandler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
-        if (error) {
-            // If the SDK has a message for the user, surface it.
-            NSString *errorMessage = error.userInfo[FBSDKErrorLocalizedDescriptionKey] ?: @"There was a problem logging you in.";
-            CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                                              messageAsString:errorMessage];
-            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-            return;
-        } else if (result.isCancelled) {
-            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                                              messageAsString:@"User cancelled."];
-            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-            return;
-        }
-
-        NSString *deniedPermission = nil;
-        for (NSString *permission in permissions) {
-            if (![result.grantedPermissions containsObject:permission]) {
-                deniedPermission = permission;
-                break;
-            }
-        }
-
-        if (deniedPermission != nil) {
-            NSString *errorMessage = [NSString stringWithFormat:@"The user didnt allow necessary permission %@", deniedPermission];
-            CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
-                                                              messageAsString:errorMessage];
-            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
-            return;
-        }
-
-        [request startWithCompletionHandler:graphHandler];
-    }];
+    [request startWithCompletionHandler:graphHandler];
 }
 
 - (void) appInvite:(CDVInvokedUrlCommand *) command
