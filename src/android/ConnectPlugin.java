@@ -17,6 +17,7 @@ import com.facebook.FacebookServiceException;
 import com.facebook.GraphRequest;
 import com.facebook.GraphResponse;
 import com.facebook.FacebookAuthorizationException;
+import com.facebook.HttpMethod;
 import com.facebook.appevents.AppEventsLogger;
 import com.facebook.applinks.AppLinkData;
 import com.facebook.login.LoginManager;
@@ -290,6 +291,10 @@ public class ConnectPlugin extends CordovaPlugin {
 
         } else if (action.equals("graphApi")) {
             executeGraph(args, callbackContext);
+
+            return true;
+        } else if (action.equals("api")) {
+            executeApi(args, callbackContext);
 
             return true;
         } else if (action.equals("getDeferredApplink")) {
@@ -700,6 +705,52 @@ public class ConnectPlugin extends CordovaPlugin {
             LoginManager.getInstance().logInWithReadPermissions(cordova.getActivity(), permissions);
         }
     }
+    
+    /*
+        args: String path, String method, Object params
+
+        Cordova will catch uncaught errors and return a failure to javascript
+     */
+    private void executeApi(JSONArray args, CallbackContext callbackContext) throws JSONException {
+
+        String DEFAULT_HTTP_METHOD = "GET";
+
+        CallbackContext graphContext = callbackContext;
+        PluginResult pr = new PluginResult(PluginResult.Status.NO_RESULT);
+        pr.setKeepCallback(true);
+        graphContext.sendPluginResult(pr);
+
+        // Validate and fetch parameters from JSONArray args
+        if (args.length() != 3) {
+            throw new RuntimeException("arguments: string path, string method, json-object params");
+        }
+
+        // TODO: Validate the types of the parameters or let them be coerced into strings or ignored?
+        String path = args.getString(0);
+
+        // getString will return the string "null" if the value is null, so must check isNull
+        String method = !args.isNull(1) ? args.getString(1) : DEFAULT_HTTP_METHOD;
+
+        // this will be null if passed an array or anything else that's not an object
+        JSONObject params = args.optJSONObject(2);
+
+        // JS SDK doesn't care about case, but HttpMethod.valueOf() does
+        HttpMethod httpMethod = HttpMethod.valueOf(method.toUpperCase());
+        Bundle bundle = facebookParamsToBundle(params);
+
+        AccessToken accessToken = AccessToken.getCurrentAccessToken();
+
+        GraphRequest graphRequest = new GraphRequest(accessToken, path, bundle, httpMethod, new GraphRequest.Callback() {
+            @Override
+            public void onCompleted(GraphResponse response) {
+                // Success means we called the graph API successfully and got a response
+                // (whether or not the GraphResponse contains an error)
+                graphContext.success(response.getJSONObject());
+            }
+        });
+
+        graphRequest.executeAsync();
+    }
 
     private ShareLinkContent buildContent(Map<String, String> paramBundle) {
         ShareLinkContent.Builder builder = new ShareLinkContent.Builder();
@@ -937,5 +988,28 @@ public class ConnectPlugin extends CordovaPlugin {
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    /*
+        JSONObject params -> Bundle
+     */
+    private static Bundle facebookParamsToBundle(JSONObject params) throws JSONException {
+
+        Bundle bundle = new Bundle();
+
+        if (params != null) {
+
+            Iterator<String> iter = params.keys();
+            while (iter.hasNext()) {
+
+                String key = iter.next();
+                String value = params.getString(key);
+
+                bundle.putString(key, value);
+            }
+
+        }
+
+        return bundle;
     }
 }
