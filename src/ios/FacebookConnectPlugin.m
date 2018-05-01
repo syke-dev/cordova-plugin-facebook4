@@ -476,6 +476,43 @@
     }];
 }
 
+- (void) api:(CDVInvokedUrlCommand *)command
+{
+    CDVPluginResult *pluginResult;
+    if (! [FBSDKAccessToken currentAccessToken]) {
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                         messageAsString:@"You are not logged in."];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }
+    
+    NSString *fbGraphPath = [command argumentAtIndex:0];
+    NSString *fbGraphMethod = [command argumentAtIndex:1];
+    NSString *fbGraphParams = [command argumentAtIndex:2];
+    
+    // Defines block that handles the Graph API response
+    FBSDKGraphRequestHandler graphHandler = ^(FBSDKGraphRequestConnection *connection, id result, NSError *error) {
+        CDVPluginResult* pluginResult;
+        if (error) {
+            NSString *message = error.userInfo[FBSDKErrorLocalizedDescriptionKey] ?: @"There was an error making the graph call.";
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR
+                                             messageAsString:message];
+        } else {
+            NSDictionary *response = (NSDictionary *) result;
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:response];
+        }
+        NSLog(@"Finished GraphAPI request");
+        
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    };
+    
+    // TODO: Didn't even notice passing in a string for parameters that requires a dictionary
+    // apparently this isn't a fatal error and just works? objective-c you what?
+    NSLog(@"Graph Path = %@", fbGraphPath);
+    FBSDKGraphRequest *request = [[FBSDKGraphRequest alloc] initWithGraphPath:fbGraphPath parameters:fbGraphParams HTTPMethod:fbGraphMethod];
+    
+    [request startWithCompletionHandler:graphHandler];
+}
+
 - (void) getDeferredApplink:(CDVInvokedUrlCommand *) command
 {
     [FBSDKAppLinkUtility fetchDeferredAppLink:^(NSURL *url, NSError *error) {
