@@ -32,6 +32,7 @@ import com.facebook.share.model.ShareOpenGraphContent;
 import com.facebook.share.widget.GameRequestDialog;
 import com.facebook.share.widget.MessageDialog;
 import com.facebook.share.widget.ShareDialog;
+import com.google.firebase.crash.FirebaseCrash;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
@@ -566,7 +567,7 @@ public class ConnectPlugin extends CordovaPlugin {
 
         if (declinedPermission != null) {
             graphContext.error("This request needs declined permission: " + declinedPermission);
-			return;
+            return;
         }
 
         if (publishPermissions && readPermissions) {
@@ -745,7 +746,13 @@ public class ConnectPlugin extends CordovaPlugin {
             public void onCompleted(GraphResponse response) {
                 // Success means we called the graph API successfully and got a response
                 // (whether or not the GraphResponse contains an error)
-                graphContext.success(response.getJSONObject());
+                JSONObject obj = response.getJSONObject();
+                if (obj == null) {
+                    // didn't know this was possible, log the path to figure out which request causes this
+                    FirebaseCrash.report(new Exception("Null response from facebook graph request " + path));
+                    obj = new JSONObject();
+                }
+                graphContext.success(obj);
             }
         });
 
