@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 
+import com.crashlytics.android.Crashlytics;
 import com.facebook.AccessToken;
 import com.facebook.CallbackManager;
 import com.facebook.FacebookCallback;
@@ -32,7 +33,6 @@ import com.facebook.share.model.ShareOpenGraphContent;
 import com.facebook.share.widget.GameRequestDialog;
 import com.facebook.share.widget.MessageDialog;
 import com.facebook.share.widget.ShareDialog;
-import com.google.firebase.crash.FirebaseCrash;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
@@ -749,7 +749,7 @@ public class ConnectPlugin extends CordovaPlugin {
                 JSONObject obj = response.getJSONObject();
                 if (obj == null) {
                     // didn't know this was possible, log the path to figure out which request causes this
-                    FirebaseCrash.report(new Exception("Null response from facebook graph request " + path));
+                    Crashlytics.logException(new Exception("Null response from facebook graph request " + path));
                     obj = new JSONObject();
                 }
                 graphContext.success(obj);
